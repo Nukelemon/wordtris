@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wordtris</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0d0d0f; --surface: #16161a; --surface2: #1e1e24;
+  --border: #2a2a35; --accent: #e8ff5a; --accent2: #ff6b6b;
+  --accent3: #6bffd8; --text: #f0f0f0; --muted: #666680;
+  --cell: #1a1a22; --cell-border: #252530;
+}
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Space Mono', monospace;
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  padding: 20px 10px; overflow-x: hidden;
+}
+h1 {
+  font-family: 'Bebas Neue', sans-serif; font-size: 52px;
+  letter-spacing: 6px; color: var(--accent);
+  text-shadow: 0 0 40px rgba(232,255,90,0.25);
+  margin-bottom: 4px; line-height: 1;
+}
+.subtitle { font-size: 10px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 20px; }
+.game-wrapper { display: flex; gap: 20px; align-items: flex-start; }
+.panel-left, .panel-right { display: flex; flex-direction: column; gap: 10px; width: 140px; }
+.panel-box { background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 4px; }
+.panel-label { font-size: 9px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+.panel-value { font-size: 24px; font-weight: 700; color: var(--accent); line-height: 1; }
+.panel-value.small { font-size: 16px; color: var(--text); }
+.next-grid { display: grid; grid-template-columns: repeat(4, 24px); grid-template-rows: repeat(2, 24px); gap: 2px; margin-top: 8px; }
+.next-cell { width: 24px; height: 24px; background: var(--cell); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: transparent; border: 1px solid var(--cell-border); transition: background 0.1s; }
+.next-cell.filled { color: var(--bg); border-color: transparent; }
+#board-canvas { border: 1px solid var(--border); display: block; border-radius: 4px; }
+.word-log { flex: 1; display: flex; flex-direction: column; gap: 4px; min-height: 80px; max-height: 220px; overflow-y: auto; }
+.word-entry { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 4px 8px; background: var(--surface2); border-radius: 3px; animation: slideIn 0.3s ease; }
+.word-entry .word { color: var(--accent3); font-weight: 700; letter-spacing: 1px; }
+.word-entry .pts { color: var(--accent); font-size: 10px; }
+@keyframes slideIn { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
+.controls { font-size: 10px; color: var(--muted); line-height: 1.9; }
+.controls span { color: var(--text); }
+.btn { background: var(--accent); color: var(--bg); border: none; padding: 10px 0; width: 100%; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 2px; cursor: pointer; border-radius: 3px; transition: opacity 0.15s; text-transform: uppercase; }
+.btn:hover { opacity: 0.85; }
+.btn.secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn.secondary:hover { color: var(--text); border-color: var(--text); }
+#overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.overlay-box { background: var(--surface); border: 1px solid var(--border); padding: 36px; text-align: center; border-radius: 6px; min-width: 300px; }
+.overlay-title { font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: 4px; color: var(--accent); margin-bottom: 8px; }
+.overlay-sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-bottom: 20px; }
+.overlay-score { font-size: 44px; font-weight: 700; color: var(--text); margin: 8px 0 4px; }
+.overlay-label { font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 24px; }
+#flash { position: fixed; top: 40%; left: 50%; transform: translateX(-50%); pointer-events: none; z-index: 200; text-align: center; }
+.flash-word { font-family: 'Bebas Neue', sans-serif; font-size: 60px; letter-spacing: 8px; color: var(--accent); text-shadow: 0 0 40px rgba(232,255,90,0.7); animation: flashAnim 1.1s forwards; white-space: nowrap; }
+@keyframes flashAnim { 0% { opacity:0; transform:scale(0.5); } 15% { opacity:1; transform:scale(1.15); } 55% { opacity:1; transform:scale(1); } 100% { opacity:0; transform:scale(1.1) translateY(-30px); } }
+.word-log::-webkit-scrollbar { width: 3px; }
+.word-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<h1>WORDTRIS</h1>
+<p class="subtitle">spell words · clear lines · rule the board</p>
+
+<div class="game-wrapper">
+  <div class="panel-left">
+    <div class="panel-box">
+      <div class="panel-label">Score</div>
+      <div class="panel-value" id="score-display">0</div>
+    </div>
+    <div class="panel-box" id="level-box">
+      <div class="panel-label">Level</div>
+      <div class="panel-value" id="level-display">1</div>
+    </div>
+    <div class="panel-box" id="zen-badge" style="display:none; border-color:#6bffd8;">
+      <div class="panel-label" style="color:#6bffd8;">Mode</div>
+      <div class="panel-value" style="font-size:16px; color:#6bffd8;">ZEN</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-label">Lines</div>
+      <div class="panel-value small" id="lines-display">0</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-label">Words</div>
+      <div class="panel-value small" id="words-display">0</div>
+    </div>
+    <div class="panel-box">
+      <div class="panel-label">Controls</div>
+      <div class="controls">
+        <span>← →</span> move<br>
+        <span>↑</span> rotate CW<br>
+        <span>Z</span> rotate CCW<br>
+        <span>↓</span> drop<br>
+        <span>Space</span> hard drop<br>
+        <span>P</span> pause
+      </div>
+    </div>
+  </div>
+
+  <canvas id="board-canvas" width="300" height="600"></canvas>
+
+  <div class="panel-right">
+    <div class="panel-box">
+      <div class="panel-label">Next piece</div>
+      <div class="next-grid" id="next-grid"></div>
+    </div>
+    <div class="panel-box" style="flex:1">
+      <div class="panel-label">Words found</div>
+      <div class="word-log" id="word-log"></div>
+    </div>
+    <button class="btn" onclick="startGame()">New Game</button>
+    <button class="btn secondary" id="pause-btn" onclick="togglePause()" style="display:none">Pause</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="overlay-box" id="overlay-content">
+    <div class="overlay-title">WORDTRIS</div>
+    <div class="overlay-sub">spell · build · score</div>
+    <div style="font-size:11px; color:var(--muted); line-height:2.1; margin-bottom:20px; text-align:left;">
+      <b style="color:var(--text)">How to play</b><br>
+      · Letter blocks fall Tetris-style<br>
+      · Words found in <b style="color:var(--accent3)">rows or columns</b> score points<br>
+      · Full rows clear the board<br>
+      · Longer words = bigger bonuses<br>
+      · Rare letters (Q, Z, X) worth more
+    </div>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:20px;padding:10px 12px;background:var(--surface2);border-radius:4px;border:1px solid var(--border);">
+      <input type="checkbox" id="zen-toggle" style="width:16px;height:16px;accent-color:var(--accent3);cursor:pointer;">
+      <div style="text-align:left;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent3);letter-spacing:1px;">ZEN MODE</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">No auto-fall · place pieces at your own pace</div>
+      </div>
+    </label>
+    <button class="btn" onclick="startGame()">Play</button>
+  </div>
+</div>
+
+<div id="flash"></div>
+
+<script>
+// ── DICTIONARY ─────────────────────────────────────────────────────
+const WORDS = `abbey abbot abide ably abode abort about above abuse abyss accept accepted accepts ace ache achieve achieved achieves acid acne acquire acquired acquires acre acres act acute adage adapt add address addressed addresses adds adept admit adobe adopt adore adorn adult advance advanced advances affect affected affects after again age aged ages agile aging ago agony agree aha ahead aid aide aided ails aim aims air airs airy aisle akin alarm album ale alert alien align all allay allow allowed allows ally alms aloft alone along also altar alter alto amber amen amid ample amps analyze analyzed analyzes and angel anger angle angry ankle annex answer answered answers ant ante antic ants anvil apart ape apex appear appeared appears apt arc arch are area aria arid ark arm army arrive arrived arrives art arts ash ashy aside ask asset assume assumed assumes ate atom atone atop attempt attempted attempts attic audit augur aunt auto avail avid avoid avow awash away awe awed awoke awry axe axed axes axis aye azure babe bable back bad badly bag bah bail bait bake baker bald bale balk balm ban bane bang bar bare bark barn bash basil basis bask bass bat batch bats bawl bay beach bead beady beak beam bean beats became become becomes bed beer beet beg began begin begins being believe believed believes bell belt bench bend bent best bet bid big bile bill bind birch bird bison bit blab black blacks blade blame bland blank blare blast blaze bleak blend bless blink bliss blob block blood bloom blot blown blub blues blunder blunt blur blurs boar boast bode bog bold bolt bond bone bonk boo boon boost bore born botch bound bout bow box boy brace brag braid brain brake bran brave brawn bray bread breads break breaks brew bride brief brine bring brings brisk broke brood brook brought brow brunt brush buck bud budge buff bug build builds built bulge bulk bull bump bun bunch bunk burg burly burnt burp burst bus bush busy but buy byte cab cable cafe cage cagy cake calculate calculated calculates calf calm camel can candy cane cap car cargo cart carve cat catch catches cats caught cause caused causes cave cedar cent chain chair chalk champ change changed changes chap char chat cheap cheek cheer chess chest chew chief child children chile chill chin china chip choir chop chum chunk cider cigar city civic civil clad claim clam clang clap clash clasp class classes claw clay clean cleaned cleans clear cleft climb cling clip cloak clock clod clog clone clop close cloth cloud club clue clump coach coal cob cobble cobra cod cog coil coin coke cola collect collected collects colt coma combine combined combines comet comic comma compare compared compares complete completed completes cone confirm confirmed confirms connect connected connects consider considered considers contain contained contains continue continued continues control controlled controls cook cop cope coral cork corn corny cot couch cough could count covet cow cowl cozy crab crack craft crag cram cramp crane crash creak cream create created creates creed creek creep crest crew crisp croak crook crop cross crow crown crud cruel crumb crust crux cry cub cube cuff cull cup curl curr curve cut cycle dad daily dairy daisy dam damp dance dare dart dash datum daub day daze deaf dean death debut decay decide decided decides decoy deed deem deep delay deliver delivered delivers delta den dense dent depot depth derby describe described describes detox develop developed develops devil dew diary did diet dig dim diner dip dirt dirty discover discovered discovers discuss discussed discusses disk diva dive dock dodge dog dogma doh doing dole dome dot dote dour dove dowdy dowry drab draft drag drain drama drank drape draw dread dream dreamed dreams dress drink drinks drip drive drives drone drove drum dry dryer dual dub duchy due dug duh dull dumb dump dune duo dupe dusk dust dwell dye dying each eagle ear earl early earn earth earths ease east eat eats edge eek eel eely effs egad egg ego eight eject elect elite elk elm ember emit end enemy enjoy entry envoy envy epic equal era err essay establish established establishes eve even event ever every evil ewe exact exam exert exile exist explain explained explains express expressed expresses extend extended extends extra eye eyes fable fad fade faith fake falls false fame fan fancy fang far farce fare farm fat fatal fate fats fault faun fawn fax fear feast feat feats fed feed feel fen fence fend fern ferry fest fetch feud fever few fewer fib fife fifty fig fight filth fin final finch fire first fist fit five fix fixed fizz flag flair flak flame flap flare flash flat flaw flea flesh flex flip flog flood floor floors flop floss flout flown flue fluid flush flux fly foam foamy focal foe fog foil fold follow followed follows fond font fool for foray force forces ford forge fork forte forum foul found four fowl fox frail frame fray free freed fresh from front froze fry fuel full fully fume fun funk funny fur furl furry fuse fuzz gag gala gale gall gap gas gash gaudy gawk gaze gee gel geld gem generate generated generates germ get gibe giddy gig gild gimp gin gird girl gist give given gland glare glass glean glee glen glib glide glint gloat glob gloom glory gloss glow glue glum glut goad goby god going gone gong goof gore gorge got gouge gourd gown grace grad grade grain gram grand grant grape grasp grass grate grave graze great greed greet grief grim gripe grit groan groom group grout grove growl grub gruel gruff guard guile guise gull gulp gum gun guru gust gusto gut gutsy guy habit hack had hag hail hale halo halt ham hang happen happened happens happy hare hark harm harp harpy harsh has hash haste hat hate hats haunt haven havoc hay haze hazel head heady heal heap heart hearts heat heats heavy hedge heed heel heft hefty helm hemp hen her herbs herd hero heron hew hex hey hick hid hike hilt him hinge hip hippo his hiss hit hoard hob hobo hock hog hold hole holly homo honey honor hood hook hoop hop horde horn horse hose hot hotel hound house houses how howl hub huff hug huh hulk hull hum human humor hump hung hunk hurl husky hut hymn ice iced icon idea ideal idle idol ill image imagine imagined imagines imam imp imply improve improved improves inch include included includes increase increased increases indicate indicated indicates inept inert infer ink inks inn inner input into involve involved involves ion ire iris iron irony isle its ivy jab jack jade jag jail jake jam jar jaunt jaw jay jazzy jelly jest jet jilt jive job jog join joke jolly jolt jot joust joy jug juice juicy jumbo junk jury just jut keel keen keg kelp kern khan kilt kin kind king kit knap knew knob knot know lab lace lacy lag lame lamp lance lap lard large larger lark laser lash last late later laud laugh lava law lawn lay layer laze lazy lea lead leafy leak lean leap learn least leave leaves led leech left leg legal lemon lend let level lick lid lieu lift light lights like lilt limb lime limit limp line liner lingo lint lip lisp lit lite loch lode lodge loft lofty log logo loin loll lone long loom loose loot lop lord lore lot love loved lovely lover loves loving low lower lucid lucky lull lump lunch lure lurk lust lusty lute lynx mace mad magic mahi main maintain maintained maintains major maker male malt man manor manx many map maple mar march mare mark marl marry mash mask mast mat match mate mats mauve may mayor maze mead mean measure measured measures meats media mega melon melt men mention mentioned mentions meow mercy merit mesa mesh met metal might mild mile mill mime mince mind mink minor mint mire mix moan moat mob mock model moist mold mole molt mom money monk month mood moot mop mope moral mort moss mote moth motif motor motto moue mount mourn move muck mud muddy mug muon mural music mutt myth nabs nag nah naive nap narc nark nay neat need neon nervy nest never new news next nick night nights nit noble nod node noel noir noise nor norm nose not note now nowt nude null numb nun nuns nut nuts nymph oaf oak oar oath oats observe observed observes occur occurred occurs ocean odd ode odes off offer oft often ohm oil oink oint okra old once one only onset ooh opera opt opus orb orbit orbs orca order orders ore orts other others ought our out outer ouzo oven over owe own oxen ozone pact pad page pail pal pale pall palm pan panic pansy pant par pard pare park pasta pasty pat patch pats pause pave paw pawn pay pea peace peach peak peal pear peck peed peel peep peer peg pele pelt pen peon people pep perform performed performs perm perp pest pet petal petty pew phase phew phone photo piano pick pie pig pika pike pilot pin pinch pine pint pion pipe pit pitch pith pixel pixy place placed places plank plant plate plaza plead plod plop plow ploy pluck plug plum plume plus pod poem point points polar pole poll polo pond pone pony poo pood pool poon poop pop pope poppy pore pork port pose pot pouch pour pout power prank prep prepare prepared prepares preserve preserved preserves prevent prevented prevents print prix pro probe prod produce produced produces prog prone proof prop pros prose protect protected protects proud provide provided provides prox prune psalm pub puck pulse pun punch puny pupil push put pygmy pyre quaff quake queen quell query queue quill quip quirk quite quota quote rabbi race rack radar raft rag raga rage rail rain rake rally ram ramp ran ranch rang rant rap rasp rat ratio rats rave raw ray raze reach reached reaches read ready real realm reap rebel receive received receives recognize recognized recognizes red reduce reduced reduces reel ref reflect reflected reflects reign rein relax release released releases rely remain remained remains remember remembered remembers remove removed removes rend rent rep repay replace replaced replaces report reported reports represent represented represents require required requires reset retro return returned returns reveal revealed reveals revue rhyme rice rid rider ridge rife rifle rig right rights rile rim rime rimy rind riot rip rise risky rite rivet roam roan roar rob robe robin rod rode roil romp rook rope rose rot roto rouge rough round rouse rout route rove rover row royal rub rudd ruddy rug rugby ruin rule ruler rum run rune rural ruse rust rusty rut rye sack sad sadly safe sag sage sago sail saint sake sale salp sand sane sang sap sash sass sassy sat sate sauce saucy save savor savvy saw say scad scald scalp scan scant scar scary scene scone scoop score scorn scout screw scrub sea seam sear seats see seed seedy seem seep self sell serf serve served serves set setup seven sew sewn shaky shall shame shape shard share shark sharp shave she shed sheen sheep sheer shelf shell shh shift shine shiny shire shirt shiv shock shore short should shout shove shrub shrug shun shy sight sigma silk sill silly silo sin since sine sing sip sir sire sit sixth sixty ski skid skill skim skin skip sky slab slag slap slash slat slave sleek sleep slew slice slide slim slip sloe slop slope sloth slug slur sly smack small smaller smart smash smell smile smoke snag snail snap snare sneak sniff snip snit snob snore snort snow snub soak soar sob sock sole solve some son song sonic soot sorry sort souk south sow sown soy spa space spade span spar spare spark spawn speak speaks spear spec speck sped spell spend spends spent spice spill spin spit spoke spoken spoof spook spoon sport spray spry spud spur spy squad squat stab stack staff stage stain stale stalk stand stands stare start starts stash state states stave steal steam steel steep steer stem step stern stew stiff still sting stir stock stomp stone stoned stones stony stood store storm story stout stove strap straw stray strip strum strut stub stuck study stuff stump stunt stye style sub sue sugar suggest suggested suggests suite sum sumo sun sunny super support supported supports surd surge swam swamp swat swear sweat sweep sweet swept swift swig swoop sword swum tab tabby tack tads taffy tale talon tame tamp tan tang tango tap tar tare tart task taught taunt tawny tax tea teach teaches tear teat teats tee teem ten tend tent text than thank the thee theft their them theme then there these they thick thief thin thing things think thinks this thorn those thou thought three threw throw thrown throws thud thug thumb thump tick tide tie tiger tight tile till times timid tin tiny tip tire tired titan tithe toad today toe tofu toil token told tole toll tomb ton tone tong tonic too top tope torch tore torn torr toss total tote touch tough tour tout tower town toy trace track trad trade trail train trait tram trap trash trawl tread treat treats tree trend trial tribe trim trio trod troop trot trove troy trub truck trug trump trunk trust truth try tsk tub tube tuft tug tulip tumor tune turf tutor tutu twig twine twist twit two tyke udder ugh ugly ulcer ulna ultra uncle unco under union unit until unto upon upper urban urge urn use user usher usual utter vale valid value valve van vary vat vats vault veer veil vein vena venom verge verse vert vest vet veto vex via vibe vice vide video vie vied vigor vile vine vino vinyl viola viral vise visor vital vivid vocal vodka voice volt vote voter vouch vow vying wad wade waif wail waist wake waltz wane war ward warp wart wary was watch water waters wave wax way wean weary weave web wed wedge weed weir weird well welt wet whale wheat wheel where whet which while whine white whites who whoa whole why wider wig wile wimp win wind wit witch witty woad woe woman won woo world worlds worth would wound wove wow wrath wren writ write writes written wrong wrote yacht yah yak yam yard yarn yaw yawn yea year yearn years yell yep yet yew yield yore you young your yours youth yummy zap zappy zeal zen zero zest zinc zip zippy ziti zone zoo zoom`.split(/\s+/);
+
+const DICT = new Set(WORDS.filter(w => w.length >= 3));
+
+// ── CONSTANTS ─────────────────────────────────────────────────────
+const COLS = 10, ROWS = 20, CS = 30; // cell size px
+const CANVAS_W = COLS * CS, CANVAS_H = ROWS * CS;
+
+// Letter weights — based on real English corpus frequency, amplified to make
+// word-spelling very achievable. Each number is the relative draw weight.
+// Vowels are boosted significantly; rare letters sharply reduced.
+const LETTER_WEIGHTS = {
+  // High-frequency vowels — very common
+  E:13, A:11, I:9, O:9, U:5,
+  // High-frequency consonants
+  T:9, N:8, S:8, R:8, H:7, L:6, D:5,
+  // Medium consonants
+  C:4, M:4, P:4, F:3, G:3, W:3, Y:3, B:3,
+  // Low-frequency
+  V:2, K:2,
+  // Rare — appear infrequently so they feel special
+  X:1, J:1, Q:1, Z:1,
+};
+
+// Build a weighted draw pool from the weights above
+const LETTER_BAG = Object.entries(LETTER_WEIGHTS)
+  .flatMap(([l, w]) => Array(w).fill(l));
+
+// Letter point values (inverse of frequency — rarer = more points)
+const LETTER_PTS = {A:1,E:1,I:1,O:1,U:1,N:1,S:1,T:1,R:1,L:1,H:2,D:2,G:2,C:3,M:3,P:3,B:3,F:3,W:3,Y:3,V:4,K:5,X:8,J:8,Q:10,Z:10};
+
+// Cell colors per letter group
+function letterColor(l) {
+  const vowels = 'AEIOU';
+  if (vowels.includes(l)) return '#3a7bd5';
+  if ('BCDFGHJKLMNPQRSTVWXYZ'.includes(l)) {
+    const pts = LETTER_PTS[l] || 1;
+    if (pts >= 8) return '#c94040';
+    if (pts >= 4) return '#c97f40';
+    if (pts >= 3) return '#8a4dc9';
+    return '#2a7a5a';
+  }
+  return '#3a7bd5';
+}
+
+// Tetromino shapes (each piece holds 1-4 letter blocks in standard tetris shapes)
+const PIECES = [
+  { shape: [[1,1,1,1]], name: 'I' },
+  { shape: [[1,1],[1,1]], name: 'O' },
+  { shape: [[0,1,0],[1,1,1]], name: 'T' },
+  { shape: [[1,0],[1,0],[1,1]], name: 'L' },
+  { shape: [[0,1],[0,1],[1,1]], name: 'J' },
+  { shape: [[1,1,0],[0,1,1]], name: 'S' },
+  { shape: [[0,1,1],[1,1,0]], name: 'Z' },
+];
+
+// ── GAME STATE ────────────────────────────────────────────────────
+let board, boardLetters, current, currentLetters, next, nextLetters;
+let score, level, lines, wordCount;
+let gameRunning, paused, dropInterval, lastDrop;
+let animFrame;
+let wordsFound;
+let zenMode = false;
+
+const canvas = document.getElementById('board-canvas');
+const ctx = canvas.getContext('2d');
+
+function randLetter() {
+  return LETTER_BAG[Math.floor(Math.random() * LETTER_BAG.length)];
+}
+
+// ── SUBSTRING INDEX ───────────────────────────────────────────────
+// Build a set of every substring (length >= 2) that appears in any dictionary
+// word. A run of letters in a piece is only valid if every contiguous sub-run
+// of length >= 2 is present in this index.
+const SUBSTRINGS = (() => {
+  const s = new Set();
+  for (const w of DICT) {
+    for (let i = 0; i < w.length; i++)
+      for (let j = i + 2; j <= w.length; j++)
+        s.add(w.slice(i, j));
+  }
+  return s;
+})();
+
+function isValidRun(letters) {
+  // A single letter is always fine. For 2+ letters, every contiguous
+  // pair and longer sub-run must be a substring of some real word.
+  if (letters.length < 2) return true;
+  const s = letters.join('').toLowerCase();
+  for (let i = 0; i < s.length; i++)
+    for (let j = i + 2; j <= s.length; j++)
+      if (!SUBSTRINGS.has(s.slice(i, j))) return false;
+  return true;
+}
+
+// Extract the consecutive letter runs that a piece shape produces,
+// both horizontally (row by row) and vertically (column by column),
+// given a flat letter array assigned left-to-right, top-to-bottom.
+function getPieceRuns(shape, letters) {
+  const H = shape.length, W = shape[0].length;
+  // Build 2D letter grid for the piece bounding box
+  const grid = Array.from({length: H}, () => Array(W).fill(null));
+  let li = 0;
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++)
+      if (shape[r][c]) grid[r][c] = letters[li++];
+
+  const runs = [];
+  // Horizontal runs
+  for (let r = 0; r < H; r++) {
+    let run = [];
+    for (let c = 0; c <= W; c++) {
+      if (c < W && grid[r][c] !== null) { run.push(grid[r][c]); }
+      else { if (run.length >= 2) runs.push(run.slice()); run = []; }
+    }
+  }
+  // Vertical runs
+  for (let c = 0; c < W; c++) {
+    let run = [];
+    for (let r = 0; r <= H; r++) {
+      if (r < H && grid[r][c] !== null) { run.push(grid[r][c]); }
+      else { if (run.length >= 2) runs.push(run.slice()); run = []; }
+    }
+  }
+  return runs;
+}
+
+function makePiece(maxAttempts = 200) {
+  const def = PIECES[Math.floor(Math.random() * PIECES.length)];
+  const shape = def.shape.map(r => [...r]);
+  const count = shape.flat().filter(Boolean).length;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const letters = Array.from({length: count}, randLetter);
+    const runs = getPieceRuns(shape, letters);
+    if (runs.every(isValidRun)) {
+      return { shape, letters, x: Math.floor((COLS - shape[0].length) / 2), y: 0 };
+    }
+  }
+  // Fallback: guarantee validity by building each run letter-by-letter
+  // using only letters that extend a known substring
+  const letters = buildValidLetters(shape, count);
+  return { shape, letters, x: Math.floor((COLS - shape[0].length) / 2), y: 0 };
+}
+
+// Fallback builder: place letters one by one, checking runs stay valid
+function buildValidLetters(shape, count) {
+  const H = shape.length, W = shape[0].length;
+  const grid = Array.from({length: H}, () => Array(W).fill(null));
+  const positions = [];
+  for (let r = 0; r < H; r++)
+    for (let c = 0; c < W; c++)
+      if (shape[r][c]) positions.push([r, c]);
+
+  function getRunsAt(g) {
+    const runs = [];
+    for (let r = 0; r < H; r++) {
+      let run = [];
+      for (let c = 0; c <= W; c++) {
+        if (c < W && g[r][c] !== null) run.push(g[r][c]);
+        else { if (run.length >= 2) runs.push(run.slice()); run = []; }
+      }
+    }
+    for (let c = 0; c < W; c++) {
+      let run = [];
+      for (let r = 0; r <= H; r++) {
+        if (r < H && g[r][c] !== null) run.push(g[r][c]);
+        else { if (run.length >= 2) runs.push(run.slice()); run = []; }
+      }
+    }
+    return runs;
+  }
+
+  // Shuffle bag for variety
+  const shuffled = [...LETTER_BAG].sort(() => Math.random() - 0.5);
+  function place(idx) {
+    if (idx === positions.length) return true;
+    const [r, c] = positions[idx];
+    for (const l of shuffled) {
+      grid[r][c] = l;
+      if (getRunsAt(grid).every(isValidRun)) {
+        if (place(idx + 1)) return true;
+      }
+      grid[r][c] = null;
+    }
+    // Last resort: any vowel
+    grid[r][c] = 'E';
+    return place(idx + 1);
+  }
+  place(0);
+  return positions.map(([r, c]) => grid[r][c] || 'E');
+}
+
+// Rotate shape 90° clockwise
+function rotateShape(shape) {
+  const R = shape.length, C = shape[0].length;
+  const out = Array.from({length: C}, () => Array(R).fill(0));
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      out[c][R - 1 - r] = shape[r][c];
+  return out;
+}
+
+// Rotate shape 90° counter-clockwise
+function rotateCCWShape(shape) {
+  const R = shape.length, C = shape[0].length;
+  const out = Array.from({length: C}, () => Array(R).fill(0));
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      out[C - 1 - c][r] = shape[r][c];
+  return out;
+}
+
+// Rotate the letter grid that corresponds to a shape — clockwise.
+// Letters are stored as a flat array in row-major order over the filled cells.
+// We build a 2D letter grid, rotate it, then re-flatten in the new order.
+function rotateLetters(shape, letters) {
+  const R = shape.length, C = shape[0].length;
+  const grid = Array.from({length: R}, () => Array(C).fill(null));
+  let li = 0;
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      if (shape[r][c]) grid[r][c] = letters[li++];
+  // CW: newGrid[c][R-1-r] = grid[r][c]
+  const newGrid = Array.from({length: C}, () => Array(R).fill(null));
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      if (shape[r][c]) newGrid[c][R - 1 - r] = grid[r][c];
+  const newShape = rotateShape(shape);
+  const out = [];
+  for (let r = 0; r < newShape.length; r++)
+    for (let c = 0; c < newShape[r].length; c++)
+      if (newShape[r][c]) out.push(newGrid[r][c]);
+  return out;
+}
+
+// Rotate the letter grid counter-clockwise.
+function rotateCCWLetters(shape, letters) {
+  const R = shape.length, C = shape[0].length;
+  const grid = Array.from({length: R}, () => Array(C).fill(null));
+  let li = 0;
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      if (shape[r][c]) grid[r][c] = letters[li++];
+  // CCW: newGrid[C-1-c][r] = grid[r][c]
+  const newGrid = Array.from({length: C}, () => Array(R).fill(null));
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      if (shape[r][c]) newGrid[C - 1 - c][r] = grid[r][c];
+  const newShape = rotateCCWShape(shape);
+  const out = [];
+  for (let r = 0; r < newShape.length; r++)
+    for (let c = 0; c < newShape[r].length; c++)
+      if (newShape[r][c]) out.push(newGrid[r][c]);
+  return out;
+}
+
+// Try to apply a rotation. shapeFn transforms the shape, lettersFn transforms letters.
+function tryRotate(shapeFn, lettersFn) {
+  const newShape = shapeFn(current.shape);
+  const newLetters = lettersFn(current.shape, currentLetters);
+  for (const dx of [0, 1, -1, 2, -2]) {
+    if (isValid(newShape, current.x + dx, current.y)) {
+      current.shape = newShape;
+      currentLetters = newLetters;
+      current.x += dx;
+      return true;
+    }
+  }
+  return false;
+}
+
+function isValid(shape, ox, oy) {
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) {
+        const nx = ox + c, ny = oy + r;
+        if (nx < 0 || nx >= COLS || ny >= ROWS) return false;
+        if (ny >= 0 && board[ny][nx]) return false;
+      }
+  return true;
+}
+
+function lock() {
+  // Map letters to cells
+  let li = 0;
+  for (let r = 0; r < current.shape.length; r++)
+    for (let c = 0; c < current.shape[r].length; c++)
+      if (current.shape[r][c]) {
+        const nx = current.x + c, ny = current.y + r;
+        if (ny >= 0) {
+          board[ny][nx] = 1;
+          boardLetters[ny][nx] = currentLetters[li];
+        }
+        li++;
+      }
+  
+  // Scan for words before clearing
+  const wordBonus = scanWords();
+  
+  // Clear full rows
+  let cleared = 0;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(Boolean)) {
+      board.splice(r, 1);
+      boardLetters.splice(r, 1);
+      board.unshift(Array(COLS).fill(0));
+      boardLetters.unshift(Array(COLS).fill(''));
+      cleared++;
+      r++; // recheck same row index
+    }
+  }
+
+  if (cleared) {
+    const linePoints = [0, 100, 300, 500, 800][Math.min(cleared, 4)] * level;
+    addScore(linePoints);
+    lines += cleared;
+    level = Math.floor(lines / 10) + 1;
+    updateHUD();
+  }
+
+  // Next piece
+  current = next;
+  currentLetters = nextLetters;
+  next = makePiece();
+  nextLetters = next.letters.slice();
+  renderNext();
+
+  if (!isValid(current.shape, current.x, current.y)) {
+    gameOver();
+  }
+}
+
+// For a contiguous run of letters, find non-overlapping words using a greedy
+// longest-first scan: at each position try the longest possible match first,
+// take it if found, then advance past it. This ensures "CATS" beats "CAT".
+function findWordsInRun(str) {
+  const matches = []; // [{word, offset}]
+  let i = 0;
+  while (i < str.length) {
+    let found = false;
+    // Try longest possible word first, shrink down to 3
+    for (let len = Math.min(str.length - i, 10); len >= 3; len--) {
+      const sub = str.slice(i, i + len);
+      if (DICT.has(sub)) {
+        matches.push({ word: sub, offset: i });
+        i += len; // skip past the whole word — no overlaps
+        found = true;
+        break;
+      }
+    }
+    if (!found) i++;
+  }
+  return matches;
+}
+
+function scanWords() {
+  let totalBonus = 0;
+  const wordsThisDrop = [];
+
+  // Scan repeatedly — erasing words can expose new ones in the next pass.
+  let keepGoing = true;
+  while (keepGoing) {
+    keepGoing = false;
+    const toScore = [];
+
+    // ── ROWS: scan left to right ───────────────────────────────────
+    for (let r = 0; r < ROWS; r++) {
+      // Split the row into contiguous filled runs
+      let runStart = -1;
+      for (let c = 0; c <= COLS; c++) {
+        const filled = c < COLS && board[r][c];
+        if (filled && runStart === -1) {
+          runStart = c;
+        } else if (!filled && runStart !== -1) {
+          const runStr = boardLetters[r].slice(runStart, c).join('').toLowerCase();
+          for (const { word, offset } of findWordsInRun(runStr)) {
+            toScore.push({
+              word,
+              pts: calcWordPts(word),
+              cells: Array.from({length: word.length}, (_, i) => ({ r, c: runStart + offset + i }))
+            });
+          }
+          runStart = -1;
+        }
+      }
+    }
+
+    // ── COLUMNS: scan top to bottom ────────────────────────────────
+    for (let c = 0; c < COLS; c++) {
+      let runStart = -1;
+      for (let r = 0; r <= ROWS; r++) {
+        const filled = r < ROWS && board[r][c];
+        if (filled && runStart === -1) {
+          runStart = r;
+        } else if (!filled && runStart !== -1) {
+          const runStr = boardLetters.slice(runStart, r).map(row => row[c]).join('').toLowerCase();
+          for (const { word, offset } of findWordsInRun(runStr)) {
+            toScore.push({
+              word,
+              pts: calcWordPts(word),
+              cells: Array.from({length: word.length}, (_, i) => ({ r: runStart + offset + i, c }))
+            });
+          }
+          runStart = -1;
+        }
+      }
+    }
+
+    if (!toScore.length) break;
+
+    // Score and erase all found words
+    for (const f of toScore) {
+      wordsThisDrop.push(f);
+      totalBonus += f.pts;
+      wordCount++;
+      wordsFound++;
+      for (const { r, c } of f.cells) {
+        board[r][c] = 0;
+        boardLetters[r][c] = '';
+      }
+    }
+    keepGoing = true;
+  }
+
+  if (!wordsThisDrop.length) return 0;
+
+  // ── COMBO MULTIPLIER ────────────────────────────────────────────
+  const count = wordsThisDrop.length;
+  const combo = count >= 5 ? 4 : count >= 4 ? 3 : count >= 3 ? 2.5 : count >= 2 ? 1.5 : 1;
+  const finalTotal = Math.round(totalBonus * combo);
+
+  for (const f of wordsThisDrop) logWord(f.word, Math.round(f.pts * combo));
+
+  flashWord(wordsThisDrop.map(f => f.word.toUpperCase()).join(' · '));
+  if (count >= 2) {
+    const label = count >= 5 ? 'INCREDIBLE' : count >= 4 ? 'AMAZING' : count >= 3 ? 'TRIPLE' : 'COMBO';
+    setTimeout(() => flashWord(`${label} ×${combo}`), 900);
+  }
+
+  addScore(finalTotal);
+  updateHUD();
+  return finalTotal;
+}
+
+
+function calcWordPts(word) {
+  const base = word.split('').reduce((s, l) => s + (LETTER_PTS[l.toUpperCase()] || 1), 0);
+  const lenBonus = word.length >= 7 ? 3 : word.length >= 6 ? 2 : word.length >= 5 ? 1.5 : 1;
+  return Math.round(base * lenBonus * level * 10);
+}
+
+// ── RENDERING ─────────────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Grid background
+  ctx.fillStyle = '#13131a';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // Grid lines
+  ctx.strokeStyle = '#1e1e2a';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= ROWS; r++) { ctx.beginPath(); ctx.moveTo(0, r*CS); ctx.lineTo(CANVAS_W, r*CS); ctx.stroke(); }
+  for (let c = 0; c <= COLS; c++) { ctx.beginPath(); ctx.moveTo(c*CS, 0); ctx.lineTo(c*CS, CANVAS_H); ctx.stroke(); }
+
+  // Locked cells
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c]) drawCell(ctx, c, r, boardLetters[r][c], false);
+
+  // Ghost piece
+  if (current) {
+    let ghostY = current.y;
+    while (isValid(current.shape, current.x, ghostY + 1)) ghostY++;
+    if (ghostY !== current.y) {
+      let li = 0;
+      for (let r = 0; r < current.shape.length; r++)
+        for (let c = 0; c < current.shape[r].length; c++)
+          if (current.shape[r][c]) {
+            drawCellGhost(ctx, current.x + c, ghostY + r, currentLetters[li]);
+            li++;
+          }
+    }
+  }
+
+  // Current piece
+  if (current) {
+    let li = 0;
+    for (let r = 0; r < current.shape.length; r++)
+      for (let c = 0; c < current.shape[r].length; c++)
+        if (current.shape[r][c]) {
+          drawCell(ctx, current.x + c, current.y + r, currentLetters[li], true);
+          li++;
+        }
+  }
+}
+
+function drawCell(ctx, c, r, letter, active) {
+  const x = c * CS, y = r * CS;
+  const clr = letterColor(letter);
+  ctx.fillStyle = clr;
+  ctx.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+  // Highlight top
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(x + 1, y + 1, CS - 2, 4);
+  // Letter
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${active ? 14 : 13}px 'Space Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(letter, x + CS/2, y + CS/2 - 1);
+  // Points subscript
+  const pts = LETTER_PTS[letter];
+  if (pts) {
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.font = `7px 'Space Mono', monospace`;
+    ctx.fillText(pts, x + CS - 5, y + CS - 5);
+  }
+}
+
+function drawCellGhost(ctx, c, r, letter) {
+  const x = c * CS, y = r * CS;
+  const clr = letterColor(letter);
+  ctx.strokeStyle = clr;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.3;
+  ctx.strokeRect(x + 1, y + 1, CS - 2, CS - 2);
+  ctx.fillStyle = clr;
+  ctx.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+  ctx.globalAlpha = 0.15;
+  ctx.fillRect(x + 1, y + 1, CS - 2, CS - 2);
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = '#fff';
+  ctx.font = `12px 'Space Mono', monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(letter, x + CS/2, y + CS/2 - 1);
+  ctx.globalAlpha = 1;
+}
+
+// ── NEXT PIECE UI ─────────────────────────────────────────────────
+function renderNext() {
+  const grid = document.getElementById('next-grid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(4, 24px)`;
+  grid.style.gridTemplateRows = `repeat(2, 24px)`;
+
+  // Normalize shape to 4x2 preview
+  const shape = next.shape;
+  const H = shape.length, W = shape[0].length;
+  const offC = Math.floor((4 - W) / 2);
+  const offR = Math.floor((2 - H) / 2);
+
+  let li = 0;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 4; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'next-cell';
+      const sr = r - offR, sc = c - offC;
+      if (sr >= 0 && sr < H && sc >= 0 && sc < W && shape[sr][sc]) {
+        const l = nextLetters[li++];
+        cell.classList.add('filled');
+        cell.textContent = l;
+        cell.style.background = letterColor(l);
+        cell.style.color = '#fff';
+        cell.style.fontSize = '11px';
+        cell.style.fontWeight = '700';
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('score-display').textContent = score.toLocaleString();
+  document.getElementById('level-display').textContent = level;
+  document.getElementById('lines-display').textContent = lines;
+  document.getElementById('words-display').textContent = wordCount;
+}
+
+function addScore(pts) {
+  score += pts;
+  document.getElementById('score-display').textContent = score.toLocaleString();
+}
+
+function logWord(word, pts) {
+  const log = document.getElementById('word-log');
+  const el = document.createElement('div');
+  el.className = 'word-entry';
+  el.innerHTML = `<span class="word">${word.toUpperCase()}</span><span class="pts">+${pts.toLocaleString()}</span>`;
+  log.insertBefore(el, log.firstChild);
+}
+
+function flashWord(word) {
+  const flash = document.getElementById('flash');
+  const el = document.createElement('div');
+  el.className = 'flash-word';
+  el.textContent = word.toUpperCase();
+  flash.innerHTML = '';
+  flash.appendChild(el);
+  setTimeout(() => { if (flash.firstChild === el) flash.innerHTML = ''; }, 1100);
+}
+
+// ── GAME LOOP ─────────────────────────────────────────────────────
+function gameLoop(ts) {
+  if (!gameRunning || paused) { animFrame = requestAnimationFrame(gameLoop); return; }
+  if (!zenMode) {
+    const interval = Math.max(100, 800 - (level - 1) * 65);
+    if (!lastDrop) lastDrop = ts;
+    if (ts - lastDrop > interval) {
+      lastDrop = ts;
+      if (isValid(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lock();
+      }
+    }
+  }
+  draw();
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// ── CONTROLS ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (!gameRunning || paused) {
+    if (e.key === 'p' || e.key === 'P') togglePause();
+    return;
+  }
+  switch(e.key) {
+    case 'ArrowLeft':
+      e.preventDefault();
+      if (isValid(current.shape, current.x - 1, current.y)) current.x--;
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      if (isValid(current.shape, current.x + 1, current.y)) current.x++;
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      if (zenMode) {
+        // In zen mode ↓ hard-drops immediately
+        let drops = 0;
+        while (isValid(current.shape, current.x, current.y + 1)) { current.y++; drops++; }
+        lock();
+      } else {
+        if (isValid(current.shape, current.x, current.y + 1)) { current.y++; addScore(1); }
+        else lock();
+        lastDrop = performance.now();
+      }
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      tryRotate(rotateShape, rotateLetters);
+      break;
+    case 'z': case 'Z':
+      e.preventDefault();
+      // Counter-clockwise: rotate shape CCW, letters CCW
+      tryRotate(rotateCCWShape, rotateCCWLetters);
+      break;
+    case ' ':
+      e.preventDefault();
+      let drops = 0;
+      while (isValid(current.shape, current.x, current.y + 1)) { current.y++; drops++; }
+      if (!zenMode) addScore(drops * 2);
+      lock();
+      lastDrop = performance.now();
+      break;
+    case 'p': case 'P':
+      togglePause();
+      break;
+  }
+  draw();
+});
+
+// ── GAME START / OVER ─────────────────────────────────────────────
+function startGame() {
+  zenMode = document.getElementById('zen-toggle').checked;
+  board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+  boardLetters = Array.from({length: ROWS}, () => Array(COLS).fill(''));
+  score = 0; level = 1; lines = 0; wordCount = 0; wordsFound = 0;
+  gameRunning = true; paused = false; lastDrop = null;
+
+  document.getElementById('word-log').innerHTML = '';
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('pause-btn').style.display = 'block';
+  document.getElementById('pause-btn').textContent = 'Pause';
+  // Show/hide level display based on mode
+  document.getElementById('level-box').style.display = zenMode ? 'none' : 'block';
+  document.getElementById('zen-badge').style.display = zenMode ? 'block' : 'none';
+  updateHUD();
+
+  next = makePiece();
+  nextLetters = next.letters.slice();
+  current = makePiece();
+  currentLetters = current.letters.slice();
+  next = makePiece();
+  nextLetters = next.letters.slice();
+  renderNext();
+
+  if (animFrame) cancelAnimationFrame(animFrame);
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function togglePause() {
+  if (!gameRunning) return;
+  paused = !paused;
+  const btn = document.getElementById('pause-btn');
+  btn.textContent = paused ? 'Resume' : 'Pause';
+  if (!paused) { lastDrop = null; }
+}
+
+function gameOver() {
+  gameRunning = false;
+  document.getElementById('pause-btn').style.display = 'none';
+  const ov = document.getElementById('overlay');
+  const box = document.getElementById('overlay-content');
+  box.innerHTML = `
+    <div class="overlay-title">GAME OVER</div>
+    <div class="overlay-sub">nice try</div>
+    <div class="overlay-score">${score.toLocaleString()}</div>
+    <div class="overlay-label">FINAL SCORE</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;text-align:center">
+      <div style="background:var(--surface2);padding:10px;border-radius:4px;">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">LEVEL</div>
+        <div style="font-size:20px;font-weight:700;color:var(--accent)">${level}</div>
+      </div>
+      <div style="background:var(--surface2);padding:10px;border-radius:4px;">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px">WORDS</div>
+        <div style="font-size:20px;font-weight:700;color:var(--accent3)">${wordCount}</div>
+      </div>
+    </div>
+    <button class="btn" onclick="startGame()">Play Again</button>
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:4px;border:1px solid var(--border);">
+      <input type="checkbox" id="zen-toggle" ${zenMode ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--accent3);cursor:pointer;">
+      <span style="font-size:10px;color:var(--accent3);letter-spacing:1px;font-weight:700;">ZEN MODE</span>
+    </label>
+  `;
+  ov.style.display = 'flex';
+}
+</script>
+</body>
+</html>
